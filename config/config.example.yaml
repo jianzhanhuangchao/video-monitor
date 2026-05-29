@@ -1,1 +1,38 @@
+monitor:
+  url: "https://xiannidongman.com/play-9-0-340.html"
+  interval_hours: 4
+  history_file: "/data/video_history.json"
 
+# 视频链接选择器（可自定义以适应不同网站）
+video_selectors:
+  - tag: "li"
+    id_pattern: "^\\d{2}$"        # 匹配 id="00" 等
+  - tag: "li"
+    class_contains: "episode"
+  - tag: "a"
+    class_contains: "play-btn"
+
+# 多播放地址配置（同一视频可能出现多个播放源，按顺序尝试）
+video_urls:
+  - pattern: "play-\\d+-\\d+-\\d+.html"
+    fallbacks:
+      - "https://player2.example.com/video/"
+      - "https://player3.example.com/video/"
+
+download:
+  output_dir: "/downloads"
+  temp_dir: "/tmp/video_download"
+  max_retries: 3
+  retry_delay: 5
+
+email:
+  enabled: true
+  smtp_server: "smtp.qq.com"
+  smtp_port: 587
+  sender: "your_email@qq.com"
+  password: "your_authorization_code"
+  receiver: "1072088954@qq.com"
+
+selenium:
+  headless: true
+  timeout: 30
