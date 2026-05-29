@@ -25,3 +25,21 @@
 ```bash
 git clone https://github.com/your-repo/video-monitor.git
 cd video-monitor
+
+#本地配置文件
+docker build -t video-monitor .
+docker run -d \
+  -v $(pwd)/config:/config \
+  -v $(pwd)/data:/data \
+  -v $(pwd)/downloads:/downloads \
+  -e CONFIG_SOURCE=/config/config.yaml \
+  --name video-monitor \
+  video-monitor
+
+#远程配置文件
+  docker run -d \
+  -v $(pwd)/data:/data \
+  -v $(pwd)/downloads:/downloads \
+  -e CONFIG_SOURCE=http://example.com/myconfig.yaml \
+  --name video-monitor \
+  video-monitor
