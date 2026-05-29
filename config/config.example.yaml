@@ -31,7 +31,7 @@ email:
   smtp_port: 587
   sender: "your_email@qq.com"
   password: "your_authorization_code"
-  receiver: "1072088954@qq.com"
+  receiver: "111111@qq.com"
 
 selenium:
   headless: true
