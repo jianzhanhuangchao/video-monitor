@@ -1,1 +1,19 @@
+version: '3.8'
 
+services:
+  video-monitor:
+    build: .
+    container_name: video-monitor
+    restart: unless-stopped
+    volumes:
+      - ./data:/data           # 存放历史记录
+      - ./downloads:/downloads # 下载的视频存放位置
+      - ./config:/config       # 配置文件目录（本地）
+    environment:
+      - CONFIG_SOURCE=/config/config.yaml   # 可改为远程 http://...
+      - TZ=Asia/Shanghai
+    # 可选：通过环境变量覆盖关键参数
+    # - MONITOR_URL=https://xiannidongman.com/play-9-0-340.html
+    # - MONITOR_INTERVAL=4
+    # - EMAIL_SENDER=your_email@qq.com
+    # - EMAIL_PASSWORD=your_auth_code
