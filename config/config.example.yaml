@@ -1,18 +1,26 @@
 monitor:
-  url: "https://xiannidongman.com/play-9-0-340.html"
+  # 支持多个 URL，每个可以是字符串（使用全局配置）或对象（可覆盖选择器和自动检测）
+  urls:
+    - "https://xiannidongman.com/play-9-0-340.html"
+    - url: "https://another-site.com/anime"
+      selectors:                # 可选，手动指定选择器
+        - tag: "div"
+          class_contains: "episode-item"
+      auto_detect: false        # 可选，关闭自动检测，使用手动选择器
+    - url: "https://third-site.com/video"
+      auto_detect: true         # 可选，开启自动检测
   interval_hours: 4
-  history_file: "/data/video_history.json"
+  history_dir: "/data/history"
+  auto_detect: true             # 全局自动检测开关
 
-# 视频链接选择器（可自定义以适应不同网站）
+# 全局默认选择器（当 url 为字符串且 auto_detect 为 false 时使用）
 video_selectors:
   - tag: "li"
-    id_pattern: "^\\d{2}$"        # 匹配 id="00" 等
-  - tag: "li"
-    class_contains: "episode"
+    id_pattern: "^\\d{2}$"
   - tag: "a"
     class_contains: "play-btn"
 
-# 多播放地址配置（同一视频可能出现多个播放源，按顺序尝试）
+# 多播放地址配置（可选项，按顺序尝试）
 video_urls:
   - pattern: "play-\\d+-\\d+-\\d+.html"
     fallbacks:
@@ -31,7 +39,7 @@ email:
   smtp_port: 587
   sender: "your_email@qq.com"
   password: "your_authorization_code"
-  receiver: "111111@qq.com"
+  receiver: "1111@qq.com"
 
 selenium:
   headless: true
