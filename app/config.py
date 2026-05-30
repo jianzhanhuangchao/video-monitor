@@ -11,16 +11,17 @@ class Config:
     
     DEFAULT_CONFIG = {
         'monitor': {
-            'url': '',
+            'urls': [],               # 支持字符串或对象
             'interval_hours': 4,
-            'history_file': '/data/video_history.json'
+            'history_dir': '/data/history',
+            'auto_detect': True
         },
-        'video_selectors': [
+        'video_selectors': [         # 全局默认选择器（自动检测模式忽略）
             {'tag': 'li', 'id_pattern': r'^\d{2}$'},
             {'tag': 'li', 'class_contains': 'episode'},
             {'tag': 'a', 'class_contains': 'play-btn'}
         ],
-        'video_urls': [],
+        'video_urls': [],            # 多播放地址配置
         'download': {
             'output_dir': '/downloads',
             'temp_dir': '/tmp/video_download',
@@ -87,7 +88,8 @@ class Config:
     def _apply_env_overrides(self):
         """应用环境变量覆盖（优先级最高）"""
         if os.getenv('MONITOR_URL'):
-            self.config['monitor']['url'] = os.getenv('MONITOR_URL')
+            # 若设置单个 MONITOR_URL，自动转为列表
+            self.config['monitor']['urls'] = [os.getenv('MONITOR_URL')]
         if os.getenv('MONITOR_INTERVAL'):
             self.config['monitor']['interval_hours'] = int(os.getenv('MONITOR_INTERVAL'))
         if os.getenv('DOWNLOAD_DIR'):
@@ -108,3 +110,37 @@ class Config:
             else:
                 return default
         return value if value is not None else default
+    
+    def get_monitor_configs(self) -> list:
+        """返回监控配置列表，每个元素为 {'url': str, 'selectors': list, 'auto_detect': bool}"""
+        urls_config = self.get('monitor.urls')
+        if not urls_config:
+            # 兼容旧的单个 url 配置（已由环境变量覆盖处理）
+            single_url = self.get('monitor.url')
+            if single_url:
+                urls_config = [single_url]
+            else:
+                return []
+        
+        result = []
+        global_selectors = self.get('video_selectors', [])
+        global_auto = self.get('monitor.auto_detect', True)
+        
+        for item in urls_config:
+            if isinstance(item, str):
+                result.append({
+                    'url': item,
+                    'selectors': global_selectors,
+                    'auto_detect': global_auto
+                })
+            elif isinstance(item, dict):
+                url = item.get('url')
+                if url:
+                    selectors = item.get('selectors', global_selectors)
+                    auto_detect = item.get('auto_detect', global_auto)
+                    result.append({
+                        'url': url,
+                        'selectors': selectors,
+                        'auto_detect': auto_detect
+                    })
+        return result
