@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 使用已知稳定版本（2025年6月的最新版，你可以自行更新）
+# 使用已知稳定版本（2025年6月）
 ENV CHROME_VERSION=126.0.6478.126
 ENV CHROME_URL=https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip
 ENV DRIVER_URL=https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip
@@ -41,6 +41,6 @@ COPY entrypoint.sh /
 
 RUN chmod +x /entrypoint.sh
 
-RUN mkdir -p /data /downloads /config
+RUN mkdir -p /data/history /downloads /config
 
 ENTRYPOINT ["/entrypoint.sh"]
