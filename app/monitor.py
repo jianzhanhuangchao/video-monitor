@@ -2,6 +2,7 @@ import json
 import os
 import time
 import hashlib
+import re
 import requests
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -19,14 +20,11 @@ class VideoMonitor:
         self.config = config
         self.config_source = config.config_source
         self.config_last_state = self._get_config_state()
-        self.extractor = VideoExtractor(config.config)
         self.downloader = M3U8Downloader(config.config)
         self.notifier = Notifier(config.config.get('email', {}))
-        self.history_file = config.config.get('monitor.history_file', '/data/video_history.json')
         self.video_urls = config.config.get('video_urls', [])
     
     def _get_config_state(self) -> Optional[str]:
-        """获取配置文件的唯一标识"""
         source = self.config_source
         if not source:
             return None
@@ -55,29 +53,34 @@ class VideoMonitor:
     def _reload_config(self):
         logger.info("Configuration changed, reloading...")
         self.config.load(self.config_source)
-        new_cfg = self.config.config
-        self.extractor = VideoExtractor(new_cfg)
-        self.downloader = M3U8Downloader(new_cfg)
-        self.notifier = Notifier(new_cfg.get('email', {}))
-        self.history_file = new_cfg.get('monitor.history_file', '/data/video_history.json')
-        self.video_urls = new_cfg.get('video_urls', [])
+        self.downloader = M3U8Downloader(self.config.config)
+        self.notifier = Notifier(self.config.config.get('email', {}))
+        self.video_urls = self.config.config.get('video_urls', [])
         logger.info("Configuration reloaded")
     
-    def load_history(self) -> List[Dict]:
-        if os.path.exists(self.history_file):
+    def _get_history_file(self, url: str) -> str:
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:16]
+        history_dir = self.config.get('monitor.history_dir', '/data/history')
+        os.makedirs(history_dir, exist_ok=True)
+        return os.path.join(history_dir, f"{url_hash}.json")
+    
+    def load_history_for_url(self, url: str) -> List[Dict]:
+        history_file = self._get_history_file(url)
+        if os.path.exists(history_file):
             try:
-                with open(self.history_file, 'r', encoding='utf-8') as f:
+                with open(history_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except:
                 pass
         return []
     
-    def save_history(self, links: List[Dict]):
+    def save_history_for_url(self, url: str, links: List[Dict]):
+        history_file = self._get_history_file(url)
         try:
-            with open(self.history_file, 'w', encoding='utf-8') as f:
+            with open(history_file, 'w', encoding='utf-8') as f:
                 json.dump(links, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logger.error(f"Save history failed: {e}")
+            logger.error(f"Save history for {url} failed: {e}")
     
     def check_updates(self, current: List[Dict], previous: List[Dict]) -> List[Dict]:
         if not previous:
@@ -85,62 +88,69 @@ class VideoMonitor:
         previous_urls = {link['url'] for link in previous}
         return [link for link in current if link['url'] not in previous_urls]
     
-    def run_once(self):
-        monitor_url = self.config.get('monitor.url')
-        if not monitor_url:
-            logger.error("No monitor URL configured")
-            return
-        
-        logger.info(f"Checking {monitor_url}")
-        current_links = self.extractor.get_video_links(monitor_url)
-        if not current_links:
-            logger.warning("No video links found")
-            return
-        
-        previous = self.load_history()
-        new_links = self.check_updates(current_links, previous)
-        
-        if new_links:
-            logger.info(f"Found {len(new_links)} new video(s)")
-            # 只处理最新的一集（最后一个）
-            latest = new_links[-1]
-            self._process_video(latest)
-        else:
-            logger.info("No new videos found")
-        
-        self.save_history(current_links)
-    
-    def _process_video(self, video: Dict):
-        logger.info(f"Processing: {video.get('title')}")
-        
-        # 构建备用地址
+    def _process_video(self, video: Dict, source_url: str):
+        logger.info(f"Processing: {video.get('title')} from {source_url}")
         fallbacks = []
         for v in self.video_urls:
             pattern = v.get('pattern')
             if pattern and re.search(pattern, video['url']):
                 fallbacks.extend(v.get('fallbacks', []))
-        
         m3u8_url = self.downloader.extract_m3u8_url(video['url'], fallbacks)
         if not m3u8_url:
             logger.error(f"No m3u8 URL found for {video['title']}")
-            self.notifier.notify(video['title'], False, "No m3u8 URL found")
+            self.notifier.notify(video['title'], False, "No m3u8 URL found", source_url)
             return
-        
         resolved_url = self.downloader.resolve_nested_m3u8(m3u8_url)
         success = self.downloader.download(resolved_url, video['title'])
-        self.notifier.notify(video['title'], success)
+        self.notifier.notify(video['title'], success, source_url=source_url)
+    
+    def run_once(self):
+        monitor_configs = self.config.get_monitor_configs()
+        if not monitor_configs:
+            logger.error("No monitor configurations found")
+            return
+        
+        for cfg in monitor_configs:
+            url = cfg['url']
+            selectors = cfg['selectors']
+            auto_detect = cfg.get('auto_detect', True)
+            
+            # 如果 auto_detect 为 True 且没有手动选择器，则传入 None 触发自动检测
+            if auto_detect and not selectors:
+                selectors = None
+            
+            extractor = VideoExtractor(self.config.config, custom_selectors=selectors)
+            try:
+                logger.info(f"Checking {url}")
+                current_links = extractor.get_video_links(url)
+                if not current_links:
+                    logger.warning(f"No video links found for {url}")
+                    continue
+                
+                previous = self.load_history_for_url(url)
+                new_links = self.check_updates(current_links, previous)
+                
+                if new_links:
+                    logger.info(f"Found {len(new_links)} new video(s) for {url}")
+                    latest = new_links[-1]   # 只下载最新一集
+                    self._process_video(latest, url)
+                else:
+                    logger.info(f"No new videos for {url}")
+                
+                self.save_history_for_url(url, current_links)
+            finally:
+                extractor.close()
     
     def run_loop(self):
         interval = self.config.get('monitor.interval_hours', 4) * 3600
         logger.info(f"Starting monitor loop, interval: {interval}s")
-        self.run_once()  # 启动立即执行一次
-        
+        self.run_once()
         while True:
             try:
                 time.sleep(interval)
                 if self._config_changed():
                     self._reload_config()
-                    self.run_once()  # 配置变化立即检查
+                    self.run_once()
                 else:
                     self.run_once()
             except KeyboardInterrupt:
@@ -148,5 +158,8 @@ class VideoMonitor:
             except Exception as e:
                 logger.error(f"Loop error: {e}")
                 time.sleep(300)
-        
-        self.extractor.close()
+        self._close()
+    
+    def _close(self):
+        # 注意 extractor 没有持久保存，无需关闭全局；但下载器没有需要关闭的资源
+        pass
