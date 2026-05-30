@@ -1,17 +1,17 @@
 import smtplib
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 class Notifier:
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         self.config = config
         self.enabled = config.get('enabled', True)
     
-    def notify(self, title: str, success: bool, error_msg: str = None):
+    def notify(self, title: str, success: bool, error_msg: str = None, source_url: str = None):
         if not self.enabled:
             logger.info("Email notification disabled")
             return
@@ -20,6 +20,7 @@ class Notifier:
         body = f"""
 视频监控通知
 
+来源页面：{source_url if source_url else '未知'}
 视频标题：{title}
 下载状态：{'成功' if success else '失败'}
 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -27,11 +28,11 @@ class Notifier:
         """
         
         try:
-            msg = MimeMultipart()
+            msg = MIMEMultipart()
             msg["From"] = self.config.get('sender')
             msg["To"] = self.config.get('receiver')
             msg["Subject"] = subject
-            msg.attach(MimeText(body.strip(), "plain"))
+            msg.attach(MIMEText(body.strip(), "plain"))
             
             with smtplib.SMTP(self.config.get('smtp_server'), self.config.get('smtp_port', 587)) as server:
                 server.starttls()
